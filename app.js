@@ -1,9 +1,9 @@
-// ==================== Supabase 云端连接配置 ====================
+// ==================== 你的 Supabase 云端配置（已填好） ====================
 const SUPABASE_URL = "https://gfbujegridjhczsmgix.supabase.co";
-const SUPABASE_KEY = "sb_publishable_tB0Nwu1M_9OMqXtg8x3aSA_fgE6z...";
+const SUPABASE_KEY = "sb_publishable_tB0Nwu1M_9OMqXtg8x3aSAfgE6zXsA5yN3kD";
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ==================== 管理员配置 ====================
+// ==================== 管理员账号密码 ====================
 const ADMIN = { account: "admin", pwd: "123456" };
 
 function adminLogin() {
@@ -28,12 +28,12 @@ function logoutAdmin() {
     location.href = "index.html";
 }
 
-// ==================== 🧠 违禁词库 ====================
+// ==================== 违禁词过滤 ====================
 const badWords = [
-    "操", "草", "艹", "妈的", "他妈", "傻逼", "sb", "煞笔", "废物", "滚", "去死",
-    "色情", "黄", "赌博", "代考", "办证", "刷单", "贷款", "裸聊", "约炮", "嫖娼",
-    "诈骗", "杀猪盘", "洗钱", "吸毒", "暴力", "自杀", "自残", "cnm", "tmd", "nmsl",
-    "二维码", "微信", "qq", "群", "加", "推广", "营销", "广告", "网址", "www"
+    "操","草","艹","妈的","他妈","傻逼","sb","煞笔","废物","滚","去死",
+    "色情","黄","赌博","代考","办证","刷单","贷款","裸聊","约炮","嫖娼",
+    "诈骗","杀猪盘","洗钱","吸毒","暴力","自杀","自残","cnm","tmd","nmsl",
+    "二维码","微信","qq","群","加","推广","营销","广告","网址","www"
 ];
 
 function checkText(content) {
@@ -47,7 +47,7 @@ function checkText(content) {
     return { pass: true };
 }
 
-// ==================== 发布功能（对接 Supabase）====================
+// ==================== 发布物品 ====================
 const form = document.getElementById('publishForm');
 if (form) {
     form.addEventListener('submit', async (e) => {
@@ -57,192 +57,146 @@ if (form) {
         const desc = document.getElementById('desc').value;
         const contact = document.getElementById('contact').value;
         const secret = document.getElementById('secret').value;
-        const file = document.getElementById('fileInput').files[0);
-        const fullContent = "标题：" + title + " | 内容：" + desc;
+        const file = document.getElementById('fileInput').files[0];
+        const full = "标题："+title+" 内容："+desc;
 
-        let oldTip = document.getElementById('tipBox');
-        if (oldTip) old.remove();
+        let old = document.getElementById('tipBox');
+        if (old) old.remove();
 
-        // 1. 文本审核
-        const textCheck = checkText(fullContent);
-        if (!textCheck.pass) {
-            const box = document.createElement('div');
-            box.id = "tipBox";
-            box.className = "alert alert-danger text-center mt-3 p-3";
-            box.innerHTML = `❌ 发布失败：${textCheck.msg}<br><button class="btn btn-warning btn-sm mt-2" onclick="showAppealForm('${fullContent}')">我要申诉</button>`;
-            form.appendChild(box);
+        const ck = checkText(full);
+        if (!ck.pass) {
+            const d = document.createElement('div');
+            d.id = "tipBox";
+            d.className = "alert alert-danger text-center p-3 mt-3";
+            d.innerHTML = `❌ 发布失败：${ck.msg}<br><button class="btn btn-sm btn-warning mt-2" onclick="showAppealForm('${full}')">申诉</button>`;
+            form.appendChild(d);
             return;
         }
 
-        // 2. 图片处理（base64 直接存到数据库）
-        let imgUrl = "";
+        let img = "";
         if (file) {
-            imgUrl = await new Promise(resolve => {
-                const reader = new FileReader();
-                reader.onload = (e) => resolve(e.target.result);
-                reader.readAsDataURL(file);
-            });
+            img = await new Promise(r=>{let f=new FileReader();f.onload=e=>r(e.target.result);f.readAsDataURL(file)});
         }
 
-        // 3. 写入 Supabase 云端数据库
         const { error } = await supabase.from('items').insert([{
-            type: type,
-            title: title,
-            description: desc,
-            contact: contact,
-            secret: secret,
-            img_url: imgUrl,
-            status: "正常"
+            type,title,description:desc,contact,secret,img_url:img,status:"正常"
         }]);
 
-        if (error) {
-            alert("发布失败：" + error.message);
-        } else {
-            alert("✅ 发布成功！数据已存到云端！");
-            location.href = "list.html";
-        }
+        if (error) alert("失败："+error.message);
+        else { alert("✅ 发布成功！"); location.href = "list.html"; }
     });
 }
 
-// 申诉功能
-function showAppealForm(content) {
-    let reason = prompt("请输入申诉理由：");
-    if (!reason) return;
-    supabase.from('appeals').insert([{ content: content, reason: reason }])
-        .then(() => alert("申诉已提交，管理员会处理"));
+function showAppealForm(c) {
+    let r = prompt("申诉理由：");
+    if (!r) return;
+    supabase.from('appeals').insert([{content:c,reason:r}]).then(()=>alert("申诉已提交"));
 }
 
-// ==================== 前台列表渲染 ====================
+// ==================== 列表页 ====================
 async function renderList() {
-    const dom = document.getElementById('list');
-    if (!dom) return;
-    const { data, error } = await supabase.from('items').select('*').order('created_at', { ascending: false });
-    if (error) { dom.innerHTML = "加载失败：" + error.message; return; }
-    if (data.length === 0) { dom.innerHTML = '<div class="alert alert-info">暂无信息</div>'; return; }
-
-    let html = "";
-    data.forEach(i => {
-        html += `
+    const d = document.getElementById('list');
+    if (!d) return;
+    const { data, error } = await supabase.from('items').select('*').order('created_at',{ascending:false});
+    if (error) { d.innerHTML = "加载失败："+error.message; return; }
+    if (data.length===0) { d.innerHTML = '<div class="alert alert-info">暂无信息</div>'; return; }
+    let h = "";
+    data.forEach(i=>{
+        h+=`
         <div class="card mb-3 shadow-sm">
-            ${i.img_url ? `<img src="${i.img_url}" style="height:180px;object-fit:cover" class="card-img-top">` : ""}
+            ${i.img_url?`<img src="${i.img_url}" class="card-img-top" style="height:180px;object-fit:cover">`:""}
             <div class="card-body">
-                <h6><a href="detail.html?id=${i.id}">${i.type == "lost" ? "[寻物]" : "[招领]"} ${i.title}</a></h6>
-                <p class="small text-muted">${i.description}</p>
-                <p class="small">状态：<span class="text-${i.status == "已找回" ? "success" : "danger"}">${i.status}</span></p>
+                <h6><a href="detail.html?id=${i.id}" class="text-dark">${i.type=="lost"?"[寻物]":"[招领]"} ${i.title}</a></h6>
+                <p class="text-muted small">${i.description}</p>
+                <p class="small">状态：<span class="${i.status=='已找回'?'text-success':'text-danger'}">${i.status}</span></p>
             </div>
         </div>`;
     });
-    dom.innerHTML = html;
+    d.innerHTML = h;
 }
 
-// ==================== 后台渲染（关键！对接 Supabase）====================
+// ==================== 管理后台 ====================
 async function renderAdminList() {
-    const dom = document.getElementById('adminList');
-    const appealDom = document.getElementById('appealList');
-    if (!dom || !appealDom) return;
+    const a = document.getElementById('adminList');
+    const b = document.getElementById('appealList');
+    if (!a||!b) return;
 
-    // 1. 加载物品列表
-    const { data: items, error: itemErr } = await supabase.from('items').select('*').order('created_at', { ascending: false });
-    if (itemErr) { dom.innerHTML = "加载失败：" + itemErr.message; return; }
-
-    let html = "";
-    items.forEach(i => {
-        html += `
-        <div class="card mb-3 shadow-sm">
-            ${i.img_url ? `<img src="${i.img_url}" style="height:180px;object-fit:cover" class="card-img-top">` : ""}
-            <div class="card-body">
-                <h6>${i.type == "lost" ? "[寻物]" : "[招领]"} ${i.title}</h6>
-                <p class="small text-muted">${i.description}</p>
-                <p class="small">状态：${i.status}</p>
-                <button class="btn btn-sm btn-warning" onclick="changeStatus(${i.id})">修改状态</button>
-                <button class="btn btn-sm btn-danger ms-1" onclick="deleteItem(${i.id})">删除</button>
-            </div>
-        </div>`;
-    });
-    dom.innerHTML = html || '<div class="alert alert-info">暂无物品</div>';
-
-    // 2. 加载申诉
-    const { data: appeals, error: appealErr } = await supabase.from('appeals').select('*').order('created_at', { ascending: false });
-    if (appealErr) { appealDom.innerHTML = "申诉加载失败：" + appealErr.message; return; }
-    let appealHtml = "";
-    appeals.forEach(i => {
-        appealHtml += `
-        <div class="card mb-2">
+    const { data:items } = await supabase.from('items').select('*').order('created_at',{ascending:false});
+    let h = "";
+    items.forEach(i=>{
+        h+=`
+        <div class="card mb-3">
+            ${i.img_url?`<img src="${i.img_url}" style="height:160px;object-fit:cover">`:""}
             <div class="card-body p-3">
-                <p><strong>申诉内容：</strong>${i.content}</p>
-                <p><strong>理由：</strong>${i.reason}</p>
-                <button class="btn btn-sm btn-danger" onclick="deleteAppeal(${i.id})">已处理</button>
+                <h6>${i.type=="lost"?"[寻物]":"[招领]"} ${i.title}</h6>
+                <p class="small">${i.description}</p>
+                <p class="small">状态：${i.status}</p>
+                <button class="btn btn-sm btn-warning" onclick="upd(${i.id})">改状态</button>
+                <button class="btn btn-sm btn-danger ms-1" onclick="del(${i.id})">删除</button>
             </div>
         </div>`;
     });
-    appealDom.innerHTML = appealHtml || '<div class="alert alert-info">暂无申诉</div>';
+    a.innerHTML = h||'<div class="alert alert-info">无物品</div>';
 
-    // 3. 更新统计
-    const total = items.length;
-    const done = items.filter(x => x.status === "已找回").length;
-    document.getElementById('totalCount').innerText = total;
-    document.getElementById('doneCount').innerText = done;
-    document.getElementById('ingCount').innerText = total - done;
+    const { data:appeals } = await supabase.from('appeals').select('*').order('created_at',{ascending:false});
+    let ah = "";
+    appeals.forEach(i=>{
+        ah+=`
+        <div class="card mb-2">
+            <div class="card-body p-2">
+                <p>内容：${i.content}</p>
+                <p>理由：${i.reason}</p>
+                <button class="btn btn-sm btn-danger" onclick="dela(${i.id})">已处理</button>
+            </div>
+        </div>`;
+    });
+    b.innerHTML = ah||'<div class="alert alert-info">无申诉</div>';
+
+    const t = items.length;
+    const ok = items.filter(x=>x.status=="已找回").length;
+    document.getElementById('total').innerText = t;
+    document.getElementById('ok').innerText = ok;
+    document.getElementById('ing').innerText = t-ok;
 }
 
-// 后台操作
-async function changeStatus(id) {
-    const newStatus = prompt("输入新状态（正常/已找回）：");
-    if (!newStatus) return;
-    await supabase.from('items').update({ status: newStatus }).eq('id', id);
-    renderAdminList();
-}
+async function upd(id){let s=prompt("状态：正常/已找回");if(!s)return;await supabase.from('items').update({status:s}).eq('id',id);renderAdminList()}
+async function del(id){if(!confirm("确定？"))return;await supabase.from('items').delete().eq('id',id);renderAdminList()}
+async function dela(id){await supabase.from('appeals').delete().eq('id',id);renderAdminList()}
 
-async function deleteItem(id) {
-    if (!confirm("确定删除？")) return;
-    await supabase.from('items').delete().eq('id', id);
-    renderAdminList();
-}
-
-async function deleteAppeal(id) {
-    await supabase.from('appeals').delete().eq('id', id);
-    renderAdminList();
-}
-
-// 详情页
-async function renderDetail() {
-    const dom = document.getElementById('detail');
-    if (!dom) return;
-    const id = new URLSearchParams(location.search).get('id');
-    const { data, error } = await supabase.from('items').select('*').eq('id', id).single();
-    if (error) { dom.innerHTML = "加载失败：" + error.message; return; }
-    dom.innerHTML = `
+// ==================== 详情页 ====================
+async function renderDetail(){
+    const d=document.getElementById('detail');
+    if(!d)return;
+    const id=new URLSearchParams(location.search).get('id');
+    const {data,error}=await supabase.from('items').select('*').eq('id',id).single();
+    if(error){d.innerHTML="错误："+error.message;return;}
+    d.innerHTML=`
     <div class="card">
-        <div class="card-body">
-            ${data.img_url ? `<img src="${data.img_url}" class="w-100 rounded mb-3">` : ""}
+        <div class="card-body p-3">
+            ${data.img_url?`<img src="${data.img_url}" class="w-100 rounded mb-3">`:""}
             <p><strong>物品：</strong>${data.title}</p>
             <p><strong>描述：</strong>${data.description}</p>
             <p><strong>联系：</strong>${data.contact}</p>
             <p><strong>状态：</strong>${data.status}</p>
-            <input type="password" id="key" class="form-control my-2" placeholder="删除密钥">
-            <button class="btn btn-danger w-100" onclick="del(${data.id})">删除</button>
+            <input id="k" class="form-control my-2" placeholder="删除密钥">
+            <button class="btn btn-danger w-100" onclick="d(${data.id})">删除</button>
         </div>
     </div>`;
 }
 
-async function del(id) {
-    const { data } = await supabase.from('items').select('secret').eq('id', id).single();
-    if (document.getElementById('key').value !== data.secret) { alert("密钥错误"); return; }
-    await supabase.from('items').delete().eq('id', id);
-    alert("删除成功");
-    location.href = "list.html";
+async function d(id){
+    const {data}=await supabase.from('items').select('secret').eq('id',id).single();
+    if(document.getElementById('k').value!==data.secret){alert("密钥错误");return;}
+    await supabase.from('items').delete().eq('id',id);
+    alert("删除成功");location.href="list.html";
 }
 
-// 页面初始化
-window.addEventListener('load', () => {
-    if (location.pathname.includes('list.html')) renderList();
-    if (location.pathname.includes('detail.html')) renderDetail();
-    if (location.pathname.includes('admin.html')) {
-        if (!isAdmin()) {
-            alert("请先登录");
-            location.href = "index.html";
-        } else {
-            renderAdminList();
-        }
+// 自动加载
+window.addEventListener('load',()=>{
+    if(location.pathname.includes('list'))renderList();
+    if(location.pathname.includes('detail'))renderDetail();
+    if(location.pathname.includes('admin')){
+        if(!isAdmin()){alert("请登录");location.href="index.html";}
+        else renderAdminList();
     }
 });
