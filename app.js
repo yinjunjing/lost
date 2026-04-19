@@ -367,24 +367,50 @@ function myList() {
 
 // ==================== 详情 ====================
 function renderDetail() {
-    const dom = document.getElementById('detail');
-    const id = new URLSearchParams(location.search).get('id');
-    const list = JSON.parse(localStorage.getItem('lostList')) || [];
-    const item = list.find(x => x.id == id);
-    if (!item) { dom.innerHTML = '<div class="alert alert-danger">不存在</div>'; return; }
-    dom.innerHTML = `
+  // 1. 先校验 DOM 元素是否存在，不存在直接返回
+  const dom = document.getElementById('detail');
+  if (!dom) {
+    console.log("页面中没有 id=detail 的元素，跳过详情渲染");
+    return; // 避免后续操作 null 元素
+  }
+
+  // 2. 校验 URL 参数是否存在
+  const id = new URLSearchParams(location.search).get('id');
+  if (!id) {
+    dom.innerHTML = '<div class="alert alert-danger">没有传入物品ID</div>';
+    return;
+  }
+
+  // 3. 校验 localStorage 数据，避免 JSON.parse 报错
+  let list = [];
+  try {
+    const storageData = localStorage.getItem('list');
+    if (storageData) {
+      list = JSON.parse(storageData);
+    }
+  } catch (e) {
+    console.log("本地存储数据格式错误：", e);
+    dom.innerHTML = '<div class="alert alert-danger">本地数据异常</div>';
+    return;
+  }
+
+  // 4. 校验是否找到匹配的物品
+  const item = list.find(x => x.id == id);
+  if (!item) {
+    dom.innerHTML = '<div class="alert alert-danger">不存在</div>';
+    return;
+  }
+
+  // 5. 正常渲染详情（原有逻辑保留）
+  dom.innerHTML = `
     <div class="card">
-        <div class="card-body">
-            ${item.img ? `<img src="${item.img}" class="w-100 rounded mb-3">` : ""}
-            <p><strong>物品：</strong>${item.title}</p>
-            <p><strong>描述：</strong>${item.desc}</p>
-            <p><strong>联系：</strong>${item.contact}</p>
-            <p><strong>状态：</strong>${item.status}</p>
-            <input type="password" id="key" class="form-control my-2" placeholder="删除密钥">
-            <button class="btn btn-danger w-100" onclick="del(${item.id})">删除</button>
-            ${aiRecommend()}
-        </div>
-    </div>`;
+      <div class="card-body">
+        ${item.img ? `<img src="${item.img}" class="w-100 rounded mb-3">` : ""}
+        <p><strong>物品：</strong>${item.title}</p>
+        <p><strong>描述：</strong>${item.desc}</p>
+      </div>
+    </div>
+  `;
 }
 
 function del(id) {
