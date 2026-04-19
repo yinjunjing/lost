@@ -1,73 +1,67 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>校园失物招领系统</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-<style>
-.hero{
-background: linear-gradient(135deg,#4158D0 0%,#746ED4 100%);
-color:white;
-padding:80px 0;
-border-radius:0 0 50px 50px;
-}
-.hover-card{transition:all 0.3s;}
-.hover-card:hover{transform:translateY(-5px);box-shadow:0 10px 20px rgba(0,0,0,0.1);}
-</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body>
-<nav class="navbar navbar-expand-lg navbar-dark" style="background:#4158D0">
-<div class="container">
-<a class="navbar-brand" href="index.html"><i class="bi bi-search-heart me-2"></i>失物招领</a>
-<div class="navbar-nav ms-auto">
-<a class="nav-link active" href="index.html">首页</a>
-<a class="nav-link" href="list.html">物品列表</a>
-<a class="nav-link" href="publish.html">我要发布</a>
-<a class="nav-link" href="my.html">我的发布</a>
-<a class="nav-link text-warning" href="javascript:adminLogin()">管理后台</a>
-</div>
-</div>
-</nav>
+<body class="bg-light">
 
-<section class="hero text-center">
-<div class="container">
-<h1 class="display-4 fw-bold mb-3">校园失物招领平台</h1>
-<p class="lead mb-4">帮助师生快速找回遗失物品</p>
-<a href="publish.html" class="btn btn-light btn-lg px-4">立即发布</a>
-<a href="list.html" class="btn btn-outline-light btn-lg ms-2 px-4">查看物品</a>
-</div>
-</section>
+<div class="container py-4">
+    <div class="text-center mb-4">
+        <h3>🎓 校园失物招领系统</h3>
+        <p class="text-muted">安全、便捷、免费使用</p>
+    </div>
 
-<div class="container py-5">
-<h3 class="text-center mb-4 fw-bold">平台功能</h3>
-<div class="row g-4">
-<div class="col-md-4">
-<div class="card hover-card border-0 shadow-sm text-center p-4">
-<h4 class="text-primary"><i class="bi bi-cloud-upload"></i></h4>
-<h5 class="mt-2">快速发布</h5>
-<p>支持图片上传，一键发布</p>
-</div>
-</div>
-<div class="col-md-4">
-<div class="card hover-card border-0 shadow-sm text-center p-4">
-<h4 class="text-primary"><i class="bi bi-shield-check"></i></h4>
-<h5 class="mt-2">安全删除</h5>
-<p>密钥保护，仅发布者可删除</p>
-</div>
-</div>
-<div class="col-md-4">
-<div class="card hover-card border-0 shadow-sm text-center p-4">
-<h4 class="text-primary"><i class="bi bi-phone"></i></h4>
-<h5 class="mt-2">手机适配</h5>
-<p>电脑手机完美显示</p>
-</div>
-</div>
-</div>
+    <!-- 功能图标介绍 -->
+    <div class="row g-3 mb-5 text-center">
+        <div class="col-4">
+            <div class="card p-3 h-100">
+                <h5>📝</h5>
+                <p class="small mb-0">发布寻物/招领</p>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="card p-3 h-100">
+                <h5>🔍</h5>
+                <p class="small mb-0">查看所有信息</p>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="card p-3 h-100">
+                <h5>📷</h5>
+                <p class="small mb-0">支持上传图片</p>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="card p-3 h-100">
+                <h5>⚙️</h5>
+                <p class="small mb-0">删除密钥保护</p>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="card p-3 h-100">
+                <h5>🛡️</h5>
+                <p class="small mb-0">违禁词自动过滤</p>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="card p-3 h-100">
+                <h5>📊</h5>
+                <p class="small mb-0">管理后台统计</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-grid gap-2">
+        <a href="publish.html" class="btn btn-primary btn-lg">我要发布</a>
+        <a href="list.html" class="btn btn-success btn-lg">查看列表</a>
+        <button onclick="adminLogin()" class="btn btn-dark btn-lg">管理后台</button>
+    </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
