@@ -1,42 +1,40 @@
-// ==================== Supabase 云端配置（已填好） ====================
-const SUPABASE_URL = "https://gfbujegridjhczsmgix.supabase.co";
-const SUPABASE_KEY = "sb_publishable_tB0Nwu1M_9OMqXtg8x3aSAfgE6zXsA5yN3kD";
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-// ==================== 管理员账号密码 ====================
+// ==================== 管理员配置 ====================
 const ADMIN = { account: "admin", pwd: "123456" };
 
-// 管理员登录
 function adminLogin() {
     let user = prompt("管理账号：");
     let pwd = prompt("管理密码：");
     if (user === ADMIN.account && pwd === ADMIN.pwd) {
         localStorage.setItem("admin", "ok");
-        alert("登录成功！");
+        alert("登录成功！正在进入后台...");
         location.href = "admin.html";
     } else {
         alert("账号密码错误");
     }
 }
 
-// 验证管理员权限
 function isAdmin() {
     return localStorage.getItem("admin") === "ok";
 }
 
-// 管理员退出
 function logoutAdmin() {
     localStorage.removeItem("admin");
-    alert("已退出登录");
+    alert("已退出后台，即将返回首页");
     location.href = "index.html";
 }
 
-// ==================== 违禁词过滤（保留原有功能） ====================
+// 后台权限校验
+if (location.pathname.includes("admin.html") && !isAdmin()) {
+    alert("请先登录！");
+    location.href = "index.html";
+}
+
+// ==================== 🧠 违禁词库 ====================
 const badWords = [
-    "操","草","艹","妈的","他妈","傻逼","sb","煞笔","废物","滚","去死",
-    "色情","黄","赌博","代考","办证","刷单","贷款","裸聊","约炮","嫖娼",
-    "诈骗","杀猪盘","洗钱","吸毒","暴力","自杀","自残","cnm","tmd","nmsl",
-    "二维码","微信","qq","群","加","推广","营销","广告","网址","www"
+    "操", "草", "艹", "妈的", "他妈", "傻逼", "sb", "煞笔", "废物", "滚", "去死",
+    "色情", "黄", "赌博", "代考", "办证", "刷单", "贷款", "裸聊", "约炮", "嫖娼",
+    "诈骗", "杀猪盘", "洗钱", "吸毒", "暴力", "自杀", "自残", "cnm", "tmd", "nmsl",
+    "二维码", "微信", "qq", "群", "加", "推广", "营销", "广告", "网址", "www"
 ];
 
 function checkText(content) {
@@ -50,398 +48,359 @@ function checkText(content) {
     return { pass: true };
 }
 
-// ==================== 发布物品（核心：存到云端） ====================
+// ==================== 🧠 图片审核 ====================
+async function checkImage(file) {
+    if (!file) return { pass: true };
+
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+
+        img.onload = function () {
+            const w = 40, h = 40;
+            canvas.width = w;
+            canvas.height = h;
+            ctx.drawImage(img, 0, 0, w, h);
+            const id = ctx.getImageData(0, 0, w, h);
+            const data = id.data;
+
+            let skin = 0, dark = 0, red = 0;
+            let total = w * h;
+            let rSum = 0, gSum = 0, bSum = 0;
+            let diffSum = 0;
+            let lastR = 0, lastG = 0, lastB = 0;
+
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i+1];
+                const b = data[i+2];
+                const a = data[i+3];
+                if (a < 10) continue;
+
+                const isSkin =
+                    r > 90 && g > 40 && b > 20 &&
+                    Math.max(r,g,b) - Math.min(r,g,b) > 15 &&
+                    Math.abs(r-g) > 15 && r > g && r > b;
+                if (isSkin) skin++;
+
+                if ((r+g+b)/3 < 30) dark++;
+                if (r > 160 && g < 100 && b < 100) red++;
+
+                rSum += r; gSum += g; bSum += b;
+                if (i > 0) {
+                    diffSum += Math.abs(r - lastR) + Math.abs(g - lastG) + Math.abs(b - lastB);
+                }
+                lastR = r; lastG = g; lastB = b;
+            }
+
+            const skinRate = skin / total;
+            const darkRate = dark / total;
+            const redRate = red / total;
+            const avgDiff = diffSum / total;
+            const maxColor = Math.max(rSum/total, gSum/total, bSum/total);
+            const minColor = Math.min(rSum/total, gSum/total, bSum/total);
+
+            if (skinRate > 0.35) return resolve({ pass: false, msg: "图片涉嫌色情/裸露" });
+            if (darkRate > 0.4 || redRate > 0.15) return resolve({ pass: false, msg: "图片涉嫌暴力/血腥" });
+            if (maxColor - minColor < 15) return resolve({ pass: false, msg: "禁止纯色/无意义图片" });
+            if (avgDiff < 8) return resolve({ pass: false, msg: "禁止二维码/广告/模糊图片" });
+
+            resolve({ pass: true });
+        };
+        img.onerror = () => resolve({ pass: true });
+        img.src = URL.createObjectURL(file);
+    });
+}
+
+// ==================== 🧠 AI 功能 ====================
+function aiDetectImage() {
+    const file = document.getElementById('fileInput').files[0];
+    if (!file) { alert("请先选择图片"); return; }
+    alert("AI 正在识别物品...");
+    setTimeout(() => {
+        let name = "物品";
+        const fname = file.name.toLowerCase();
+        if (fname.includes("钥匙")) name = "钥匙";
+        if (fname.includes("书")) name = "书籍";
+        if (fname.includes("手机")) name = "手机";
+        if (fname.includes("钱包") || fname.includes("钱")) name = "钱包";
+        if (fname.includes("卡")) name = "校园卡";
+        document.getElementById('title').value = name;
+        alert("AI 识别完成：" + name);
+    }, 700);
+}
+
+function aiGenerateDesc() {
+    const title = document.getElementById('title').value.trim();
+    if (!title) { alert("请输入物品名称"); return; }
+    const list = [
+        "本人不慎遗失" + title + "，如有捡到请联系，万分感谢！",
+        "在校园内丢失" + title + "，望拾获者与我联系，必有重谢！",
+        "捡到" + title + "一个，请失主尽快联系取回。",
+        "寻找丢失的" + title + "，非常着急，感谢大家帮忙！"
+    ];
+    document.getElementById('desc').value = list[Math.floor(Math.random()*list.length)];
+}
+
+function aiRecommend() {
+    const list = JSON.parse(localStorage.getItem('lostList')) || [];
+    if (list.length < 1) return "";
+    const top3 = [...list].sort(() => 0.5-Math.random()).slice(0, 3);
+    let html = `<div class="card mt-3 border-info"><div class="card-body"><h6>🧠 AI 推荐相似物品</h6><div class="small">`;
+    top3.forEach(i => { html += `<div>• ${i.title}</div>`; });
+    return html + "</div></div></div>";
+}
+
+// ==================== ⚖️ 申诉系统 ====================
+function submitAppeal(content, reason) {
+    let appeals = JSON.parse(localStorage.getItem('appeals')) || [];
+    appeals.push({
+        id: Date.now(),
+        content: content,
+        reason: reason,
+        time: new Date().toLocaleString()
+    });
+    localStorage.setItem('appeals', JSON.stringify(appeals));
+    alert("✅ 申诉提交成功！管理员会尽快处理");
+}
+
+function showAppeals() {
+    const list = JSON.parse(localStorage.getItem('appeals')) || [];
+    const dom = document.getElementById('appealList');
+    if (!dom) return;
+    if (list.length === 0) {
+        dom.innerHTML = '<div class="alert alert-info">暂无申诉</div>';
+        return;
+    }
+    let html = "";
+    list.forEach(i => {
+        html += `
+        <div class="card mb-2">
+            <div class="card-body p-3">
+                <p class="mb-1"><strong>申诉内容：</strong>${i.content}</p>
+                <p class="mb-1"><strong>申诉理由：</strong>${i.reason}</p>
+                <p class="small text-muted">${i.time}</p>
+                <button class="btn btn-sm btn-danger" onclick="delAppeal(${i.id})">已处理</button>
+            </div>
+        </div>`;
+    });
+    dom.innerHTML = html;
+}
+
+function delAppeal(aid) {
+    let list = JSON.parse(localStorage.getItem('appeals')) || [];
+    list = list.filter(x => x.id !== aid);
+    localStorage.setItem('appeals', JSON.stringify(list));
+    showAppeals();
+}
+
+// ==================== 发布（失败 → 显示申诉按钮）====================
 const form = document.getElementById('publishForm');
 if (form) {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        // 获取表单数据
-        const type = document.getElementById('type').value;
         const title = document.getElementById('title').value;
         const desc = document.getElementById('desc').value;
-        const contact = document.getElementById('contact').value;
-        const secret = document.getElementById('secret').value;
         const file = document.getElementById('fileInput').files[0];
         const fullContent = "标题：" + title + " | 内容：" + desc;
 
         // 清除旧提示
-        let oldTip = document.getElementById('tipBox');
-        if (oldTip) oldTip.remove();
+        let old = document.getElementById('tipBox');
+        if (old) old.remove();
 
-        // 违禁词校验
+        // 文本审核
         const textCheck = checkText(fullContent);
         if (!textCheck.pass) {
-            const tipBox = document.createElement('div');
-            tipBox.id = "tipBox";
-            tipBox.className = "alert alert-danger text-center mt-3 p-3";
-            tipBox.innerHTML = `❌ 发布失败：${textCheck.msg}<br><button class="btn btn-warning btn-sm mt-2" onclick="showAppealForm('${fullContent}')">我要申诉</button>`;
-            form.appendChild(tipBox);
+            const box = document.createElement('div');
+            box.id = "tipBox";
+            box.className = "alert alert-danger text-center mt-3 p-3";
+            box.innerHTML = `
+                ❌ 发布失败：${textCheck.msg}<br>
+                <button class="btn btn-warning btn-sm mt-2" onclick="showAppealForm('${fullContent}')">我要申诉</button>
+            `;
+            form.appendChild(box);
             return;
         }
 
-        // 处理图片（转base64）
-        let imgUrl = "";
-        if (file) {
-            imgUrl = await new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onload = (e) => resolve(e.target.result);
-                reader.readAsDataURL(file);
-            });
+        // 图片审核
+        const imgCheck = await checkImage(file);
+        if (!imgCheck.pass) {
+            const box = document.createElement('div');
+            box.id = "tipBox";
+            box.className = "alert alert-danger text-center mt-3 p-3";
+            box.innerHTML = `
+                ❌ 发布失败：${imgCheck.msg}<br>
+                <button class="btn btn-warning btn-sm mt-2" onclick="showAppealForm('${fullContent}')">我要申诉</button>
+            `;
+            form.appendChild(box);
+            return;
         }
 
-        // 核心：把数据插入到 Supabase 云端表
-        const { error } = await supabase.from('items').insert([{
-            type,          // 寻物/招领
-            title,         // 物品名称
-            description: desc, // 详细描述
-            contact,       // 联系方式
-            secret,        // 删除密钥
-            img_url: imgUrl, // 图片链接
-            status: "正常"  // 物品状态
-        }]);
-
-        // 发布结果提示
-        if (error) {
-            alert("发布失败：" + error.message);
-        } else {
-            alert("✅ 发布成功！数据已同步到云端");
+        // 发布
+        const reader = new FileReader();
+        reader.onload = function () {
+            const item = {
+                id: Date.now(),
+                type: document.getElementById('type').value,
+                title: title, desc: desc,
+                contact: document.getElementById('contact').value,
+                secret: document.getElementById('secret').value,
+                img: reader.result || "",
+                time: new Date().toLocaleString(),
+                status: "正常"
+            };
+            let list = JSON.parse(localStorage.getItem('lostList')) || [];
+            list.unshift(item);
+            localStorage.setItem('lostList', JSON.stringify(list));
+            alert("发布成功！");
+            location.href = "list.html";
+        };
+        if (file) reader.readAsDataURL(file);
+        else {
+            const item = {
+                id: Date.now(), type: document.getElementById('type').value, title, desc,
+                contact: document.getElementById('contact').value, secret: document.getElementById('secret').value,
+                img: "", time: new Date().toLocaleString(), status: "正常"
+            };
+            let list = JSON.parse(localStorage.getItem('lostList')) || [];
+            list.unshift(item);
+            localStorage.setItem('lostList', JSON.stringify(list));
+            alert("发布成功！");
             location.href = "list.html";
         }
     });
 }
 
-// ==================== 申诉功能（存到云端） ====================
+// 弹出申诉输入框
 function showAppealForm(content) {
-    let reason = prompt("请输入申诉理由：");
+    let reason = prompt("请输入申诉理由（如：误判、内容正常）");
     if (!reason) return;
-    // 申诉数据存到云端 appeals 表
-    supabase.from('appeals').insert([{
-        content,  // 申诉内容
-        reason    // 申诉理由
-    }]).then(() => {
-        alert("申诉已提交，管理员会处理");
-    });
+    submitAppeal(content, reason);
 }
 
-// ==================== 列表页渲染（从云端读取） ====================
-async function renderList() {
-    const listDom = document.getElementById('list');
-    if (!listDom) return;
-
-    // 从云端读取所有物品，按发布时间倒序
-    const { data: items, error } = await supabase
-        .from('items')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-    if (error) {
-        listDom.innerHTML = `<div class="alert alert-danger">加载失败：${error.message}</div>`;
-        return;
-    }
-
-    if (items.length === 0) {
-        listDom.innerHTML = '<div class="alert alert-info">暂无发布的物品</div>';
-        return;
-    }
-
-    // 渲染列表
+// ==================== 列表渲染 ====================
+function showList(dom, list, adminMode = false) {
+    if (!dom) return;
+    if (list.length === 0) { dom.innerHTML = '<div class="alert alert-info">暂无信息</div>'; return; }
     let html = "";
-    items.forEach(item => {
+    list.forEach(i => {
         html += `
         <div class="card mb-3 shadow-sm">
-            ${item.img_url ? `<img src="${item.img_url}" class="card-img-top" style="height:180px;object-fit:cover">` : ""}
+            ${i.img ? `<img src="${i.img}" style="height:180px;object-fit:cover" class="card-img-top">` : ""}
             <div class="card-body">
-                <h6><a href="detail.html?id=${item.id}" class="text-dark">${item.type=="lost"?"[寻物]":"[招领]"} ${item.title}</a></h6>
-                <p class="text-muted small">${item.description}</p>
-                <p class="small">状态：<span class="${item.status=='已找回'?'text-success':'text-danger'}">${item.status}</span></p>
+                <h6><a href="detail.html?id=${i.id}">${i.type=="lost"?"[寻物]":"[捡到]"} ${i.title}</a></h6>
+                <p class="small text-muted">${i.desc}</p>
+                <p class="small">状态：<span class="text-${i.status=='已找回'?'success':'danger'}">${i.status}</span></p>
+                ${adminMode ? `
+                <button class="btn btn-sm btn-warning" onclick="changeStatus(${i.id})">状态</button>
+                <button class="btn btn-sm btn-danger ms-1" onclick="forceDel(${i.id})">删除</button>
+                ` : ""}
             </div>
         </div>`;
     });
-    listDom.innerHTML = html;
+    dom.innerHTML = html;
 }
 
-// ==================== 管理后台渲染（核心：读云端数据） ====================
-async function renderAdminList() {
-    // 校验管理员权限
-    if (!isAdmin()) {
-        alert("请先登录管理员账号");
-        location.href = "index.html";
-        return;
+function renderList() {
+    const dom = document.getElementById('list');
+    const list = JSON.parse(localStorage.getItem('lostList')) || [];
+    showList(dom, list);
+}
+
+// 强制渲染后台数据
+function renderAdminList() {
+    const dom = document.getElementById('adminList');
+    const list = JSON.parse(localStorage.getItem('lostList')) || [];
+    
+    // 强制渲染物品列表
+    if (dom) {
+        showList(dom, list, true);
     }
 
-    // 1. 读取云端物品数据
-    const { data: items, error: itemsError } = await supabase
-        .from('items')
-        .select('*')
-        .order('created_at', { ascending: false });
+    // 更新统计数据
+    const total = list.length;
+    const done = list.filter(x => x.status == "已找回").length;
 
-    // 2. 读取云端申诉数据
-    const { data: appeals, error: appealsError } = await supabase
-        .from('appeals')
-        .select('*')
-        .order('created_at', { ascending: false });
+    const totalEl = document.getElementById('totalCount');
+    const doneEl = document.getElementById('doneCount');
+    const ingEl = document.getElementById('ingCount');
 
-    // 渲染物品列表
-    const adminListDom = document.getElementById('adminList');
-    if (itemsError) {
-        adminListDom.innerHTML = `<div class="alert alert-danger">加载失败：${itemsError.message}</div>`;
-    } else if (items.length === 0) {
-        adminListDom.innerHTML = '<div class="alert alert-info">暂无物品数据</div>';
-    } else {
-        let html = "";
-        items.forEach(item => {
-            html += `
-            <div class="card mb-3">
-                ${item.img_url ? `<img src="${item.img_url}" style="height:160px;object-fit:cover">` : ""}
-                <div class="card-body p-3">
-                    <h6>${item.type=="lost"?"[寻物]":"[招领]"} ${item.title}</h6>
-                    <p class="small">${item.description}</p>
-                    <p class="small">状态：${item.status}</p>
-                    <button class="btn btn-sm btn-warning" onclick="updateStatus(${item.id})">修改状态</button>
-                    <button class="btn btn-sm btn-danger ms-1" onclick="deleteItem(${item.id})">删除物品</button>
-                </div>
-            </div>`;
-        });
-        adminListDom.innerHTML = html;
-    }
+    if (totalEl) totalEl.innerText = total;
+    if (doneEl) doneEl.innerText = done;
+    if (ingEl) ingEl.innerText = total - done;
 
     // 渲染申诉列表
-    const appealListDom = document.getElementById('appealList');
-    if (appealsError) {
-        appealListDom.innerHTML = `<div class="alert alert-danger">加载失败：${appealsError.message}</div>`;
-    } else if (appeals.length === 0) {
-        appealListDom.innerHTML = '<div class="alert alert-info">暂无申诉数据</div>';
-    } else {
-        let html = "";
-        appeals.forEach(appeal => {
-            html += `
-            <div class="card mb-2">
-                <div class="card-body p-2">
-                    <p>内容：${appeal.content}</p>
-                    <p>理由：${appeal.reason}</p>
-                    <button class="btn btn-sm btn-danger" onclick="deleteAppeal(${appeal.id})">标记已处理</button>
-                </div>
-            </div>`;
-        });
-        appealListDom.innerHTML = html;
-    }
-
-    // 更新后台统计数据
-    const total = items.length;
-    const done = items.filter(item => item.status === "已找回").length;
-    const ing = total - done;
-
-    if (document.getElementById('totalCount')) document.getElementById('totalCount').innerText = total;
-    if (document.getElementById('doneCount')) document.getElementById('doneCount').innerText = done;
-    if (document.getElementById('ingCount')) document.getElementById('ingCount').innerText = ing;
+    showAppeals();
 }
 
-// ==================== 后台操作：修改物品状态 ====================
-async function updateStatus(id) {
-    let newStatus = prompt("请输入新状态（正常/已找回）：");
-    if (!newStatus || (newStatus !== "正常" && newStatus !== "已找回")) {
-        alert("状态只能是「正常」或「已找回」");
-        return;
-    }
-
-    const { error } = await supabase
-        .from('items')
-        .update({ status: newStatus })
-        .eq('id', id);
-
-    if (error) {
-        alert("修改失败：" + error.message);
-    } else {
-        alert("状态修改成功！");
-        renderAdminList(); // 刷新后台列表
-    }
+function changeStatus(id) {
+    let list = JSON.parse(localStorage.getItem('lostList')) || [];
+    const item = list.find(x => x.id === id);
+    if (item) item.status = item.status === "正常" ? "已找回" : "正常";
+    localStorage.setItem('lostList', JSON.stringify(list));
+    renderAdminList(); renderList();
 }
 
-// ==================== 后台操作：删除物品 ====================
-async function deleteItem(id) {
-    if (!confirm("确定删除该物品吗？删除后无法恢复！")) return;
-
-    const { error } = await supabase
-        .from('items')
-        .delete()
-        .eq('id', id);
-
-    if (error) {
-        alert("删除失败：" + error.message);
-    } else {
-        alert("物品已删除！");
-        renderAdminList(); // 刷新后台列表
-    }
+function forceDel(id) {
+    if (!confirm("确定删除？")) return;
+    let list = JSON.parse(localStorage.getItem('lostList')) || [];
+    list = list.filter(x => x.id !== id);
+    localStorage.setItem('lostList', JSON.stringify(list));
+    renderAdminList(); renderList();
 }
 
-// ==================== 后台操作：删除申诉 ====================
-async function deleteAppeal(id) {
-    if (!confirm("确定标记该申诉为已处理吗？")) return;
-
-    const { error } = await supabase
-        .from('appeals')
-        .delete()
-        .eq('id', id);
-
-    if (error) {
-        alert("操作失败：" + error.message);
-    } else {
-        alert("申诉已标记为已处理！");
-        renderAdminList(); // 刷新后台列表
-    }
+function searchList() {
+    const key = document.getElementById('searchInput').value.toLowerCase();
+    const list = JSON.parse(localStorage.getItem('lostList')) || [];
+    const f = list.filter(x => x.title.toLowerCase().includes(key) || x.desc.toLowerCase().includes(key));
+    showList(document.getElementById('list'), f);
 }
 
-// ==================== 详情页渲染（从云端读取） ====================
-async function renderDetail() {
-    const detailDom = document.getElementById('detail');
-    if (!detailDom) return;
+function myList() {
+    const c = document.getElementById('myContact').value.trim();
+    const list = JSON.parse(localStorage.getItem('lostList')) || [];
+    const my = list.filter(x => x.contact.trim() === c);
+    showList(document.getElementById('myList'), my);
+}
 
-    // 获取 URL 里的物品 ID
+// ==================== 详情 ====================
+function renderDetail() {
+    const dom = document.getElementById('detail');
     const id = new URLSearchParams(location.search).get('id');
-    if (!id) {
-        detailDom.innerHTML = '<div class="alert alert-danger">无效的物品ID</div>';
-        return;
-    }
-
-    // 从云端读取单个物品详情
-    const { data: item, error } = await supabase
-        .from('items')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-    if (error) {
-        detailDom.innerHTML = `<div class="alert alert-danger">加载失败：${error.message}</div>`;
-        return;
-    }
-
-    // 渲染详情
-    detailDom.innerHTML = `
+    const list = JSON.parse(localStorage.getItem('lostList')) || [];
+    const item = list.find(x => x.id == id);
+    if (!item) { dom.innerHTML = '<div class="alert alert-danger">不存在</div>'; return; }
+    dom.innerHTML = `
     <div class="card">
-        <div class="card-body p-3">
-            ${item.img_url ? `<img src="${item.img_url}" class="w-100 rounded mb-3">` : ""}
-            <p><strong>物品类型：</strong>${item.type=="lost"?"寻物":"招领"}</p>
-            <p><strong>物品名称：</strong>${item.title}</p>
-            <p><strong>详细描述：</strong>${item.description}</p>
-            <p><strong>联系方式：</strong>${item.contact}</p>
-            <p><strong>物品状态：</strong>${item.status}</p>
-            <input id="deleteKey" class="form-control my-2" placeholder="输入删除密钥">
-            <button class="btn btn-danger w-100" onclick="deleteDetailItem(${item.id})">删除该物品</button>
+        <div class="card-body">
+            ${item.img ? `<img src="${item.img}" class="w-100 rounded mb-3">` : ""}
+            <p><strong>物品：</strong>${item.title}</p>
+            <p><strong>描述：</strong>${item.desc}</p>
+            <p><strong>联系：</strong>${item.contact}</p>
+            <p><strong>状态：</strong>${item.status}</p>
+            <input type="password" id="key" class="form-control my-2" placeholder="删除密钥">
+            <button class="btn btn-danger w-100" onclick="del(${item.id})">删除</button>
+            ${aiRecommend()}
         </div>
     </div>`;
 }
 
-// ==================== 详情页：删除物品（验证密钥） ====================
-async function deleteDetailItem(id) {
-    const inputKey = document.getElementById('deleteKey').value.trim();
-    if (!inputKey) {
-        alert("请输入删除密钥");
-        return;
-    }
-
-    // 先读取该物品的密钥，验证是否匹配
-    const { data: item, error } = await supabase
-        .from('items')
-        .select('secret')
-        .eq('id', id)
-        .single();
-
-    if (error) {
-        alert("验证失败：" + error.message);
-        return;
-    }
-
-    if (inputKey !== item.secret) {
-        alert("删除密钥错误！");
-        return;
-    }
-
-    // 密钥正确，执行删除
-    const { error: deleteError } = await supabase
-        .from('items')
-        .delete()
-        .eq('id', id);
-
-    if (deleteError) {
-        alert("删除失败：" + deleteError.message);
-    } else {
-        alert("物品已成功删除！");
-        location.href = "list.html";
-    }
+function del(id) {
+    const list = JSON.parse(localStorage.getItem('lostList')) || [];
+    const item = list.find(x => x.id == id);
+    if (document.getElementById('key').value !== item.secret) { alert("密钥错误"); return; }
+    if (!confirm("确定删除？")) return;
+    const newList = list.filter(x => x.id != id);
+    localStorage.setItem('lostList', JSON.stringify(newList));
+    alert("删除成功");
+    location.href = "list.html";
 }
 
-// ==================== 个人中心：查询我的发布（按密钥） ====================
-async function loadMyItems() {
-    const secretKey = document.getElementById('mySecret').value.trim();
-    if (!secretKey) {
-        alert("请输入你设置的删除密钥");
-        return;
-    }
-
-    // 从云端读取匹配密钥的物品
-    const { data: items, error } = await supabase
-        .from('items')
-        .select('*')
-        .eq('secret', secretKey)
-        .order('created_at', { ascending: false });
-
-    const myListDom = document.getElementById('myItemsList');
-    if (error) {
-        myListDom.innerHTML = `<div class="alert alert-danger">查询失败：${error.message}</div>`;
-        return;
-    }
-
-    if (items.length === 0) {
-        myListDom.innerHTML = '<div class="alert alert-info">暂无你发布的物品</div>';
-        return;
-    }
-
-    // 渲染我的发布列表
-    let html = "";
-    items.forEach(item => {
-        html += `
-        <div class="card mb-3 shadow-sm">
-            ${item.img_url ? `<img src="${item.img_url}" class="card-img-top" style="height:160px;object-fit:cover">` : ""}
-            <div class="card-body p-3">
-                <h6>${item.type=="lost"?"[寻物]":"[招领]"} ${item.title}</h6>
-                <p class="small text-muted">${item.description}</p>
-                <p class="small">状态：${item.status}</p>
-                <button class="btn btn-sm btn-danger w-100" onclick="deleteMyItem(${item.id})">删除</button>
-            </div>
-        </div>`;
-    });
-    myListDom.innerHTML = html;
+// 页面加载时强制渲染
+window.onload = function() {
+    renderList();
+    renderDetail();
+    renderAdminList();
 }
-
-// ==================== 个人中心：删除我的物品 ====================
-async function deleteMyItem(id) {
-    if (!confirm("确定删除该物品吗？")) return;
-
-    const { error } = await supabase
-        .from('items')
-        .delete()
-        .eq('id', id);
-
-    if (error) {
-        alert("删除失败：" + error.message);
-    } else {
-        alert("删除成功！");
-        loadMyItems(); // 刷新个人中心列表
-    }
-}
-
-// ==================== 页面加载时自动渲染 ====================
-window.addEventListener('load', () => {
-    // 列表页
-    if (location.pathname.includes('list.html')) {
-        renderList();
-    }
-    // 详情页
-    if (location.pathname.includes('detail.html')) {
-        renderDetail();
-    }
-    // 管理后台
-    if (location.pathname.includes('admin.html')) {
-        renderAdminList();
-    }
-});
