@@ -43,10 +43,12 @@
 <div class="mb-3">
 <label class="form-label">物品描述</label>
 <textarea id="desc" class="form-control" rows="3" required></textarea>
+<button type="button" class="btn btn-outline-primary btn-sm mt-2 w-100" onclick="aiGenerateDesc()">🧠 AI 自动生成描述</button>
 </div>
 <div class="mb-3">
 <label class="form-label">上传图片</label>
 <input type="file" id="fileInput" class="form-control" accept="image/*">
+<button type="button" class="btn btn-outline-success btn-sm mt-2 w-100" onclick="aiDetectImage()">🧠 AI 识别图片物品</button>
 </div>
 <div class="mb-3">
 <label class="form-label">联系方式</label>
